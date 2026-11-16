@@ -32,3 +32,12 @@ jobs:
         with:
           name: App-simulator
           path: build/Build/Products/Debug-iphonesimulator/App.app
+      - name: Package ready-to-open Xcode project (Pods installed)
+        run: >
+          cd ios &&
+          ditto -c -k --sequesterRsrc --keepParent App ../noticemitra-ios-project-ready.zip
+      - name: Upload ready Xcode project
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-project-ready
+          path: noticemitra-ios-project-ready.zip
