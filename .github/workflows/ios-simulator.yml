@@ -33,9 +33,13 @@ jobs:
           name: App-simulator
           path: build/Build/Products/Debug-iphonesimulator/App.app
       - name: Package ready-to-open Xcode project (Pods installed)
-        run: >
-          cd ios &&
-          ditto -c -k --sequesterRsrc --keepParent App ../noticemitra-ios-project-ready.zip
+        run: |
+          rm -rf ready
+          mkdir -p ready/noticemitra/ios ready/noticemitra/node_modules/@capacitor ready/noticemitra/node_modules/@capacitor-community
+          ditto ios/App ready/noticemitra/ios/App
+          ditto node_modules/@capacitor/ios ready/noticemitra/node_modules/@capacitor/ios
+          ditto node_modules/@capacitor-community/speech-recognition ready/noticemitra/node_modules/@capacitor-community/speech-recognition
+          cd ready && ditto -c -k --sequesterRsrc --keepParent noticemitra ../noticemitra-ios-project-ready.zip
       - name: Upload ready Xcode project
         uses: actions/upload-artifact@v4
         with:
