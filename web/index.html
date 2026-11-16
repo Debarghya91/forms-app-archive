@@ -3,9 +3,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="manifest" href="manifest.json"><meta name="theme-color" content="#0B3D2E">
 <title>NoticeMitra · Virtual CA</title>
+<script>
+// Boot diagnostics: capture every startup error (including scripts that fail
+// to load) so a blank screen on a real phone can report its own cause.
+window.__nmBootErrors = [];
+window.addEventListener("error", function (e) {
+  try {
+    if (e.target && (e.target.src || e.target.href)) {
+      var u = e.target.src || e.target.href;
+      window.__nmBootErrors.push("Failed to load: " + String(u).split("/").pop());
+    } else {
+      window.__nmBootErrors.push("Error: " + (e.message || "unknown") + (e.filename ? " (" + String(e.filename).split("/").pop() + ":" + (e.lineno || "?") + ")" : ""));
+    }
+  } catch (x) {}
+}, true);
+window.addEventListener("unhandledrejection", function (e) {
+  try { var r = e.reason; window.__nmBootErrors.push("Promise: " + (r && r.message ? r.message : String(r))); } catch (x) {}
+});
+</script>
 <link rel="stylesheet" href="styles.css">
 </head><body><main>
-<div id="view-auth"></div>
+<div id="view-auth"><div id="nm-boot-placeholder" style="max-width:520px;margin:48px auto;padding:20px;text-align:center;font-family:-apple-system,Helvetica,Arial,sans-serif;color:#0B3D2E;"><div style="font-size:28px;font-weight:700;">NoticeMitra</div><p style="color:#555;">Loading...</p></div></div>
 <div id="app-shell" class="hid">
 <div class="hd"><div class="logo">M</div><div><h1>NoticeMitra · <b>Virtual CA</b></h1><p class="sub">Got a GST notice? Talk for one minute. Get the reply, checklist and deadlines.</p></div></div>
 <section id="view-home"></section>
@@ -38,4 +56,57 @@
 <script src="js/profile.js"></script>
 <script src="js/profile-ext.js"></script>
 <script src="js/app.js"></script>
+<script>
+// Boot watchdog: if nothing has rendered 8 seconds after load, try rendering
+// the sign-in screen directly once. If that also fails, show a diagnostic
+// card on the phone itself instead of a blank screen.
+(function () {
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function rendered() {
+    var shell = $("app-shell");
+    if (shell && !shell.classList.contains("hid")) return true;
+    var ph = $("nm-boot-placeholder");
+    var auth = $("view-auth");
+    if (!ph && auth && auth.innerHTML.replace(/\s/g, "").length > 0) return true;
+    return false;
+  }
+  function showDiagnostic(extra) {
+    var auth = $("view-auth");
+    if (!auth) return;
+    var checks = [];
+    checks.push("NMAuth: " + (typeof window.NMAuth === "undefined" ? "MISSING" : "present"));
+    checks.push("NMTax: " + (typeof window.NMTax === "undefined" ? "MISSING" : "present"));
+    checks.push("NMApp: " + (typeof window.NMApp === "undefined" ? "MISSING" : "present"));
+    var errs = window.__nmBootErrors || [];
+    var errHtml = errs.length ? "<p>" + errs.slice(0, 5).map(function (m) { return esc(m); }).join("<br>") + "</p>" : "<p>No JavaScript error was captured. The app scripts may not have loaded, or startup stopped silently.</p>";
+    if (extra) errHtml += "<p>" + esc(extra) + "</p>";
+    auth.innerHTML = '<div style="max-width:520px;margin:32px auto;padding:20px;font-family:-apple-system,Helvetica,Arial,sans-serif;color:#1a1a1a;">' +
+      '<h2 style="color:#0B3D2E;margin:0 0 8px;">NoticeMitra did not start</h2>' +
+      '<p>Startup did not finish on this phone. Please send a screenshot of this screen so the exact cause can be fixed.</p>' +
+      errHtml +
+      '<p style="color:#555;">' + checks.join("<br>") + '</p>' +
+      '<p><button onclick="location.reload()" style="background:#0B3D2E;color:#fff;border:0;border-radius:8px;padding:12px 20px;font-size:16px;">Try again</button></p></div>';
+  }
+  setTimeout(function () {
+    try {
+      if (rendered()) return;
+      var auth = $("view-auth");
+      if (auth && window.NMAuth && typeof NMAuth.renderAuth === "function") {
+        try {
+          NMAuth.renderAuth(auth, function () {
+            var shell = $("app-shell"), tabs = $("tabbar");
+            if (shell) shell.classList.remove("hid");
+            if (tabs) tabs.classList.remove("hid");
+            auth.classList.add("hid");
+            if (window.NMApp) NMApp.show("home");
+          });
+          if (rendered()) return;
+        } catch (e) { showDiagnostic("Recovery failed: " + (e && e.message ? e.message : String(e))); return; }
+      }
+      showDiagnostic(null);
+    } catch (e) { showDiagnostic("Watchdog failed: " + (e && e.message ? e.message : String(e))); }
+  }, 8000);
+})();
+</script>
 </body></html>
